@@ -67,7 +67,7 @@ install:
 # -----------------------
 build:
 	@echo "🏗️  Building docker images ..\n"
-	@docker-compose -f docker-compose.yml build
+	@docker compose -f docker-compose.yml build
 
 
 # ================
@@ -80,7 +80,7 @@ build:
 
 run:
 	@echo "🚀  Starting docker-compose.yml ..\n"
-	@docker-compose -f docker-compose.yml up -d
+	@docker compose -f docker-compose.yml up -d
 
 # ---------------------------
 # Stop all running containers
@@ -88,7 +88,7 @@ run:
 
 stop:
 	@echo "🔍  Stopping any running containers .. \n"
-	@docker-compose -f docker-compose.yml down
+	@docker compose -f docker-compose.yml down
 
 # ----------------------
 # Restart all containers
@@ -108,22 +108,22 @@ rasa-restart:
 
 rasa-stop:
 	@echo "🤖  Stopping Rasa ..\n"
-	@docker-compose -f docker-compose.yml stop rasa-core
+	@docker compose -f docker-compose.yml stop rasa-core
 
 rasa-start:
 	@echo "🤖  Starting Rasa ..\n"
-	@docker-compose -f docker-compose.yml up -d rasa-core
+	@docker compose -f docker-compose.yml up -d rasa-core
 
 rasa-build:
 	@echo "🤖  Building Rasa ..\n"
-	@docker-compose -f docker-compose.yml build rasa-core
+	@docker compose -f docker-compose.yml build rasa-core
 
 # -----------------------
 # Seed database with data
 # -----------------------
 seed:
 	@echo "🌱 Seeding database ..\n"
-	@docker-compose -f docker-compose.yml exec api /app/api/wait-for-it.sh db:5432 --timeout=60 -- python3 seed.py
+	@docker compose -f docker-compose.yml exec api /app/api/wait-for-it.sh db:5432 --timeout=60 -- python3 seed.py
 
 
 # =======================
@@ -161,19 +161,19 @@ logs:
 api:
 	@make db
 	@echo "🚀  Starting FastAPI and postgres ..\n"
-	@docker-compose -f docker-compose.yml up -d api
+	@docker compose -f docker-compose.yml up -d api
 
 # ------------------------
 # Startup just Postgres DB
 # ------------------------
 db:
 	@echo "🚀  Starting Postgres with pgvector ..\n"
-	@docker-compose -f docker-compose.yml up -d db
+	@docker compose -f docker-compose.yml up -d db
 
 
 db-stop:
 	@echo " Stopping the database ..\n"
-	@docker-compose -f docker-compose.yml down db
+	@docker compose -f docker-compose.yml down db
 
 
 db-reset:
@@ -196,7 +196,7 @@ db-reset:
 # -------------------------------
 models:
 	@echo "💽  Building models in Postgres ..\n"
-	@docker-compose -f docker-compose.yml exec api /app/api/wait-for-it.sh db:5432 --timeout=60 -- python3 models.py
+	@docker compose -f docker-compose.yml exec api /app/api/wait-for-it.sh db:5432 --timeout=60 -- python3 models.py
 
 # -------------------------------
 # Delete containers or bad images
@@ -288,6 +288,6 @@ env-var:
 rasa-train:
 	@echo "💽 Generating Rasa models ..\n"
 	@make rasa-start
-	@docker-compose -f docker-compose.yml exec rasa-core rasa train
+	@docker compose -f docker-compose.yml exec rasa-core rasa train
 	@make rasa-stop
 	@echo "✅ Done\n"

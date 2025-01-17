@@ -50,24 +50,33 @@ banner:
 # ---------------------------------------
 # Run this first to setup the environment
 # ---------------------------------------
+# install:
+# 	@make banner
+# 	@make stop
+# 	@make env-var
+# 	@make rasa-train
+# 	@make build
+# 	@make run
+# 	@make models
+# 	@make rasa-restart
+# 	@make seed
+# 	@echo "✅ RasaGPT installed and running"
+
+# work in progress to get "make install" working from native Ubuntu (24.04) host
+# previously, paulpierre I think tested mainly from native Mac OSX host
 install:
 	@make banner
 	@make stop
 	@make env-var
-	@make rasa-train
 	@make build
-	@make run
-	@make models
-	@make rasa-restart
-	@make seed
-	@echo "✅ RasaGPT installed and running"
+	@echo "✅ RasaGPT docker images built"
 
 # -----------------------
 # Build the docker images
 # -----------------------
 build:
 	@echo "🏗️  Building docker images ..\n"
-	@docker compose -f docker-compose.yml build
+	@docker compose -f docker-compose.yml build --no-cache
 
 
 # ================

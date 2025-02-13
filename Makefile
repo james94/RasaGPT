@@ -68,15 +68,21 @@ install:
 	@make banner
 	@make stop
 	@make env-var
+	@make rasa-train
 	@make build
-	@echo "✅ RasaGPT docker images built"
+	@make run
+	@make models
+	@make rasa-restart
+	@make seed
+	@echo "✅ RasaGPT installed and running"
 
 # -----------------------
 # Build the docker images
 # -----------------------
+# @docker compose -f docker-compose.yml build --no-cache
 build:
 	@echo "🏗️  Building docker images ..\n"
-	@docker compose -f docker-compose.yml build --no-cache
+	@docker compose -f docker-compose.yml build
 
 
 # ================

@@ -1,7 +1,7 @@
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declared_attr
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column
+from sqlalchemy import Column, text
 from datetime import datetime
 from util import snake_case
 import uuid as uuid_pkg
@@ -65,6 +65,13 @@ class BaseModel(SQLModel):
             session.add(self)
             session.commit()
             session.refresh(self)
+
+    # def save(self):
+    #     # save and commit to database
+    #     with Session(get_engine()) as session:
+    #         session.add(self)
+    #         session.commit()
+    #         session.refresh(self)
 
     def delete(self):
         with Session(get_engine()) as session:
@@ -592,7 +599,7 @@ def create_db():
 def create_user_permissions():
     session = Session(get_engine(dsn=SU_DSN))
     # grant access to entire database and all tables to user DB_USER
-    query = f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER};"
+    query = text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER};")
     session.execute(query)
     session.commit()
     session.close()
@@ -609,13 +616,13 @@ def create_vector_index():
     if PGVECTOR_ADD_INDEX is True:
         session = Session(get_engine(dsn=SU_DSN))
         for strategy in DISTANCE_STRATEGIES:
-            session.execute(strategy[3])
+            session.execute(text(f"{strategy[3]}"))
             session.commit()
 
 
 def enable_vector():
     session = Session(get_engine(dsn=SU_DSN))
-    query = "CREATE EXTENSION IF NOT EXISTS vector;"
+    query = text("CREATE EXTENSION IF NOT EXISTS vector;")
     session.execute(query)
     session.commit()
     add_vector_distance_fn(session)
@@ -627,7 +634,7 @@ def add_vector_distance_fn(session: Session):
         strategy_name = strategy[1]
         strategy_distance_str = strategy[2]
 
-        query = f"""create or replace function match_node_{strategy_name} (
+        query = text(f"""create or replace function match_node_{strategy_name} (
     query_embeddings vector({VECTOR_EMBEDDINGS_COUNT}),
     match_threshold float,
     match_count int
@@ -649,7 +656,7 @@ begin
         order by similarity desc
         limit match_count;
 end;
-$$;"""
+$$;""")
 
         session.execute(query)
         session.commit()

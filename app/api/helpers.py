@@ -1,3 +1,5 @@
+# from sqlalchemy import select, cast
+from sqlalchemy import cast, Integer
 from fastapi import HTTPException
 from uuid import UUID
 import os
@@ -78,21 +80,27 @@ def create_org_by_org_or_uuid(
     organization: Union[Organization, OrganizationCreate, str] = None,
     session: Optional[Session] = None,
 ):
-    namespace = namespace or organization.namespace
+    namespace = namespace or (organization.namespace if isinstance(organization, Organization) else None)
 
     if not namespace:
         raise HTTPException(
             status_code=400, detail="Organization namespace is required"
         )
 
-    o = (
-        get_org_by_uuid_or_namespace(namespace, session=session, should_except=False)
-        if not isinstance(organization, Organization)
-        else organization
-    )
+    existing_org = get_org_by_uuid_or_namespace(namespace, session=session, should_except=False)
 
-    if o:
-        raise HTTPException(status_code=404, detail="Organization already exists")
+    # o = (
+    #     get_org_by_uuid_or_namespace(namespace, session=session, should_except=False)
+    #     if not isinstance(organization, Organization)
+    #     else organization
+    # )
+
+    # if o:
+    #     raise HTTPException(status_code=404, detail="Organization already exists")
+
+    # Instead of raising 404, return existing org or handle as needed
+    if existing_org:
+        return existing_org
 
     if isinstance(organization, OrganizationCreate) or isinstance(organization, str):
         organization = organization or OrganizationCreate(
@@ -270,76 +278,94 @@ def create_document_by_file_path(
     # ------------------------
     # Handle duplicate content
     # ------------------------
-    if get_document_by_hash(file_hash, session=session):
-        raise HTTPException(
-            status_code=409,
-            detail=f'Document "{file_name}" already uploaded! \n\nsha256:{file_hash}!',
-        )
+    existing_document = get_document_by_hash(file_hash, session=session)
 
-    # ----------------------------------
-    # Handle file versioning by filename
-    # ----------------------------------
+    if existing_document:
+        # If overwrite is True, update the existing document
+        if overwrite:
+            existing_document.status = ENTITY_STATUS.DEPRECATED
+            # existing_document.save()
 
-    # If we are overwriting, deprecate the current version and increment the version number of new file
-    document = get_document_by_name(
-        file_name,
-        project_id=project_id,
-        organization_id=organization_id,
-        session=session,
-    )
+            # ---------------------
+            # Create a new document
+            # ---------------------
+            file_version = existing_document.version + 1
 
-    if document and overwrite:
-        file_version = document.version + 1
-        document.updated_at = datetime.utcnow()
-        document.status = ENTITY_STATUS.DEPRECATED.value
-        document.save()
-    else:
-        # ---------------------
-        # Create a new document
-        # ---------------------
-        document = Document(
-            display_name=file_name,
-            project_id=project.id,
-            organization_id=organization.id,
-            data=file_contents,
-            version=file_version,
-            hash=file_hash,
-            url=url if url else None,
-        )
-        if session:
-            session.add(document)
-            session.commit()
-            session.refresh(document)
+            new_document = Document(
+                display_name=file_name,
+                project_id=project.id,
+                organization_id=organization.id,
+                data=file_contents,
+                version=file_version,
+                hash=file_hash,
+                url=url if url else None,
+            )
+
+            if session:
+                session.add(new_document)
+                session.commit()
+                session.refresh(new_document)
+            else:
+                with Session(get_engine()) as session:
+                    session.add(new_document)
+                    session.commit()
+                    session.refresh(new_document)
 
             # ---------------------
             # Create the embeddings
             # ---------------------
             create_document_nodes(
-                document=document,
+                document=new_document,
                 project=project,
                 organization=organization,
                 session=session,
             )
 
-        else:
-            with Session(get_engine()) as session:
-                session.add(document)
-                session.commit()
-                session.refresh(document)
+            return new_document
 
-                # ---------------------
-                # Create the embeddings
-                # ---------------------
-                create_document_nodes(
-                    document=document,
-                    project=project,
-                    organization=organization,
-                    session=session,
-                )
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail=f'Document "{file_name}" already uploaded! \n\nsha256:{file_hash}!',
+            )
+
+
+    # ---------------------
+    # Create a new document
+    # ---------------------
+    document = Document(
+        display_name=file_name,
+        project_id=project.id,
+        organization_id=organization.id,
+        data=file_contents,
+        version=file_version,
+        hash=file_hash,
+        url=url if url else None,
+    )
+    if session:
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+    else:
+        with Session(get_engine()) as session:
+            session.add(document)
+            session.commit()
+            session.refresh(document)
+
+    # ---------------------
+    # Create the embeddings
+    # ---------------------
+    create_document_nodes(
+        document=document,
+        project=project,
+        organization=organization,
+        session=session,
+    )
 
     if not document:
         raise HTTPException(status_code=400, detail="Could not create document")
 
+    return document
 
 # --------------------------
 # Create document embeddings
@@ -506,7 +532,7 @@ def get_document_by_name(
             select(Document).where(
                 Document.project == project,
                 Document.display_name == file_name,
-                Document.status == ENTITY_STATUS.ACTIVE.value,
+                Document.status == ENTITY_STATUS.ACTIVE,
             )
         ).first()
     else:
@@ -515,7 +541,7 @@ def get_document_by_name(
                 select(Document).where(
                     Document.project == project,
                     Document.display_name == file_name,
-                    Document.status == ENTITY_STATUS.ACTIVE.value,
+                    Document.status == ENTITY_STATUS.ACTIVE,
                 )
             ).first()
 
